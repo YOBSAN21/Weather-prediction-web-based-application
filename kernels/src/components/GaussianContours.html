@@ -1,0 +1,47 @@
+{#each radii as r, idx}
+<ellipse rx="{r.x}" ry="{r.y}" fill="{color(idx)}" {transform} vector-effect="non-scaling-stroke" />
+{/each}
+
+<script>
+  // Computing the ellipses according to:
+  // http://www.visiondummy.com/2014/04/draw-error-ellipse-representing-covariance-matrix/
+  import * as gauss from '../gaussian';
+  import * as d3 from 'd3'; 
+  import {Context} from './util/context';
+
+  export default {
+    namespace: 'svg',
+    data() {
+      return {
+        context: new Context(300, 300, [-4, 4], [-4, 4]),
+        gaussian: new gauss.Gaussian([0,0], [[1,0.7],[0.7,2]]),
+        contours: [
+          Math.sqrt(4.61),
+          Math.sqrt(3.22),
+          Math.sqrt(2.41),
+          Math.sqrt(1.83),
+          Math.sqrt(1.39),
+          Math.sqrt(1.02),
+          Math.sqrt(0.731),
+          Math.sqrt(0.446),
+          Math.sqrt(0.211)],
+      };
+    },
+    computed: {
+      transform: ({ gaussian, context }) => {
+        const [mx, my] = gaussian.getMean();
+        const [[a,c], [b,d]] = gaussian.transformationMatrix();
+        return `matrix(${a},${-b},${-c},${d},${context.u(mx)},${context.v(my)})`;
+      },
+      radii: ({ context, contours }) => {
+        return contours.map(c => ({
+          x: context.u(c) - context.u(0),
+          y: context.v(0) - context.v(c),
+        }));
+      },
+      color: ({ contours }) => {
+        return d3.scaleSequential(d3.interpolateRdPu).domain([0, contours.length - 1]);
+      },
+    }
+  };
+</script>

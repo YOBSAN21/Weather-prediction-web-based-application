@@ -1,0 +1,92 @@
+<svg width="{context.width}" height="{context.height}">
+  <GaussianContours width="{context.width}" height="{context.height}" {context} {gaussian} />
+  <circle class="handle"  cx={context.u(eig.e1.x)} cy={context.v(eig.e1.y)} r="4" />
+  <circle class="handle"  cx={context.u(eig.e2.x)} cy={context.v(eig.e2.y)} r="4" />
+  <line x1={context.u(gaussian.mean[0])} y1={context.v(gaussian.mean[1])} x2={context.u(eig.e1.x)} y2={context.v(eig.e1.y)} stroke="rgb(245, 181, 62)" stroke-width="2" />
+  <line x1={context.u(gaussian.mean[0])} y1={context.v(gaussian.mean[1])} x2={context.u(eig.e2.x)} y2={context.v(eig.e2.y)} stroke="rgb(245, 181, 62)" stroke-width="2" />
+  <circle class="handleInvisible" ref:e1 cx={context.u(eig.e1.x)} cy={context.v(eig.e1.y)} r="44" />
+  <circle class="handleInvisible" ref:e2 cx={context.u(eig.e2.x)} cy={context.v(eig.e2.y)} r="44" />
+</svg>
+
+<style>
+  .handleInvisible {
+    fill: rgba(245, 181, 62, 0);
+    cursor: grab;
+  }
+
+  .handle {
+    fill: rgb(245, 181, 62);
+  }
+
+  .handle:hover {
+    stroke: gray;
+    stroke-width: 2px;
+  }
+</style>
+
+<script>
+  import * as gauss from '../gaussian';
+  import * as d3 from 'd3';
+  import * as m from 'ml-matrix';
+  import {Context} from './util/context';
+  import {clamp} from './util/limit';
+
+  const magnitude = v => Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+
+  export default {
+    components: { GaussianContours: './GaussianContours.html' },
+    data() {
+      const gaussian = new gauss.Gaussian([0,0], [[1,0],[0,2]]);
+      const e = new m.EigenvalueDecomposition(gaussian.cov);
+      const l1 = Math.sqrt(e.realEigenvalues[0]);
+      const l2 = Math.sqrt(e.realEigenvalues[1]);
+      return {
+        eig: { e1: {
+          x: e.eigenvectorMatrix.get(0,0) * l1,
+          y: e.eigenvectorMatrix.get(1,0) * l1,
+        },
+        e2: {
+          x: e.eigenvectorMatrix.get(0,1) * l2,
+          y: e.eigenvectorMatrix.get(1,1) * l2
+        }},
+        mean: gaussian.mean,
+        context: new Context(300, 300, [-3, 3], [-3, 3]),
+      };
+    },
+    computed: {
+      gaussian: ({ eig, mean }) => {
+        const T = new m.Matrix([[eig.e1.x, eig.e2.x], [eig.e1.y, eig.e2.y]]);
+        return new gauss.Gaussian([mean[0],mean[1]], T.mmul(T.transpose()));
+      }
+    },
+    oncreate() {
+      d3.select(this.refs.e1).call(d3.drag()
+        .on('drag', () => {
+          const { context, eig } = this.get();
+          const k = (eig.e2.x)*(eig.e2.x)+(eig.e2.y)*(eig.e2.y);
+          const x = context.x(clamp(d3.event.x, 10, context.width - 10));
+          const y = context.y(clamp(d3.event.y, 10, context.height - 10));
+          eig.e1 = { x: x, y: y, };
+          eig.e2 = {
+            x: (-y * Math.sqrt(k)) / magnitude([x, y]),
+            y: (x  * Math.sqrt(k)) / magnitude([x, y])
+          };
+          this.set({ eig });
+        }));
+
+      d3.select(this.refs.e2).call(d3.drag()
+        .on('drag', () => {
+          const { context, eig } = this.get();
+          const k = (eig.e1.x)*(eig.e1.x)+(eig.e1.y)*(eig.e1.y);
+          const x = context.x(clamp(d3.event.x, 10, context.width - 10));
+          const y = context.y(clamp(d3.event.y, 10, context.height - 10));
+          eig.e2 = { x: x, y: y, };
+          eig.e1 = {
+            x: (y * Math.sqrt(k)) / magnitude([x, y]),
+            y: (-x  * Math.sqrt(k)) / magnitude([x, y])
+          };
+          this.set({ eig });
+        }));
+    }
+  };
+</script>
